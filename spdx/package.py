@@ -11,6 +11,7 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
 
 import hashlib
 
@@ -24,35 +25,35 @@ from spdx import utils
 
 class Package(object):
 
-    """Represents an analyzed Package.
+    """
+    Represent an analyzed Package.
     Fields:
-        name : Mandatory, string.
-        version: Optional, string.
-        file_name: Optional, string.
-        supplier: Optional, Organization or Person or NO_ASSERTION.
-        originator: Optional, Organization or Person.
-        download_location: Mandatory, URL as string.
-        homepage: Optional, URL as string or NONE or NO_ASSERTION.
-        verif_code: Mandatory string.
-        check_sum: Optional , spdx.checksum.Algorithm.
-        source_info: Optional string.
-        conc_lics: Mandatory spdx.document.License or spdx.utils.SPDXNone or
-        spdx.utils.NoAssert.
-        license_declared : Mandatory spdx.document.License or spdx.utils.SPDXNone or
-        spdx.utils.NoAssert.
-        license_comment  : optional string.
-        licenses_from_files: list of spdx.document.License or spdx.utils.SPDXNone or
-        spdx.utils.NoAssert.
-        cr_text: Copyright text, string , utils.NoAssert or utils.SPDXNone. Mandatory.
-        summary: Optional str.
-        description: Optional str.
-        files: List of files in package, atleast one.
-        verif_exc_files : list of file names excluded from verification code or None.
+     - name : Mandatory, string.
+     - version: Optional, string.
+     - file_name: Optional, string.
+     - supplier: Optional, Organization or Person or NO_ASSERTION.
+     - originator: Optional, Organization or Person.
+     - download_location: Mandatory, URL as string.
+     - homepage: Optional, URL as string or NONE or NO_ASSERTION.
+     - verif_code: Mandatory string.
+     - check_sum: Optional , spdx.checksum.Algorithm.
+     - source_info: Optional string.
+     - conc_lics: Mandatory spdx.document.License or spdx.utils.SPDXNone or
+     - spdx.utils.NoAssert.
+     - license_declared : Mandatory spdx.document.License or spdx.utils.SPDXNone or
+     - spdx.utils.NoAssert.
+     - license_comment  : optional string.
+     - licenses_from_files: list of spdx.document.License or spdx.utils.SPDXNone or
+     - spdx.utils.NoAssert.
+     - cr_text: Copyright text, string , utils.NoAssert or utils.SPDXNone. Mandatory.
+     - summary: Optional str.
+     - description: Optional str.
+     - files: List of files in package, atleast one.
+     - verif_exc_files : list of file names excluded from verification code or None.
     """
 
     def __init__(self, name=None, download_location=None, version=None,
                  file_name=None, supplier=None, originator=None):
-        super(Package, self).__init__()
         self.name = name
         self.version = version
         self.file_name = file_name
@@ -83,113 +84,131 @@ class Package(object):
         self.verif_exc_files.append(filename)
 
     def validate(self, messages):
-        """Validates the package's fields. Appends user friends errors
-        to messages.
         """
-        return (self.validate_checksum(messages) and
-                self.validate_optional_str_fields(messages) and
-                self.validate_mandatory_str_fields(messages) and
-                self.validate_files(messages) and
-                self.validate_mandatory_fields(messages) and
-                self.validate_optional_fields(messages))
+        Validate the package fields.
+        Append user friendly error messages to the `messages` list.
+        """
+        messages = self.validate_checksum(messages)
+        messages = self.validate_optional_str_fields(messages)
+        messages = self.validate_mandatory_str_fields(messages)
+        messages = self.validate_files(messages)
+        messages = self.validate_mandatory_fields(messages)
+        messages = self.validate_optional_fields(messages)
+
+        return messages
 
     def validate_optional_fields(self, messages):
-        status = True
-
         if self.originator and not isinstance(self.originator, (utils.NoAssert, creationinfo.Creator)):
-            messages.append('Package originator must be instance of ' +
-                            'spdx.utils.NoAssert or spdx.creationinfo.Creator')
-            status = False
+            messages = messages + [
+                'Package originator must be instance of '
+                'spdx.utils.NoAssert or spdx.creationinfo.Creator'
+            ]
 
         if self.supplier and not isinstance(self.supplier, (utils.NoAssert, creationinfo.Creator)):
-            messages.append('Package supplier must be instance of ' +
-                            'spdx.utils.NoAssert or spdx.creationinfo.Creator')
-            status = False
+            messages = messages + [
+                'Package supplier must be instance of '
+                'spdx.utils.NoAssert or spdx.creationinfo.Creator'
+            ]
 
-        return status
+        return messages
 
     def validate_mandatory_fields(self, messages):
-        status = True
-
         if not isinstance(self.conc_lics, (utils.SPDXNone, utils.NoAssert, document.License)):
-            messages.append('Package concluded license must be instance of ' +
-                            'spdx.utils.SPDXNone or spdx.utils.NoAssert or spdx.document.License')
-            status = False
+            messages = messages + [
+                'Package concluded license must be instance of '
+                'spdx.utils.SPDXNone or spdx.utils.NoAssert or '
+                'spdx.document.License'
+            ]
 
         if not isinstance(self.license_declared, (utils.SPDXNone, utils.NoAssert, document.License)):
-            messages.append('Package declared license must be instance of ' +
-                            'spdx.utils.SPDXNone or spdx.utils.NoAssert or spdx.document.License')
-            status = False
+            messages = messages + [
+                'Package declared license must be instance of '
+                'spdx.utils.SPDXNone or spdx.utils.NoAssert or '
+                'spdx.document.License'
+            ]
 
-        license_from_file_check = lambda prev, el: \
-            prev and isinstance(el, (document.License, utils.SPDXNone, utils.NoAssert))
-
+        # FIXME: this is obscure and unreadable
+        license_from_file_check = lambda prev, el: prev and isinstance(el, (document.License, utils.SPDXNone, utils.NoAssert))
         if not reduce(license_from_file_check, self.licenses_from_files, True):
-            messages.append('each element in licenses_from_files must be instance of ' +
-                            'spdx.utils.SPDXNone or spdx.utils.NoAssert or spdx.document.License')
-            status = False
+            messages = messages + [
+                'Each element in licenses_from_files must be instance of '
+                'spdx.utils.SPDXNone or spdx.utils.NoAssert or '
+                'spdx.document.License'
+            ]
 
-        if len(self.licenses_from_files) == 0:
-            messages.append('Package licenses_from_files can not be empty')
-            status = False
+        if not self.licenses_from_files:
+            messages = messages + [
+                'Package licenses_from_files can not be empty'
+            ]
 
-        return status
+        return messages
 
     def validate_files(self, messages):
-        if len(self.files) == 0:
-            messages.append('Package must have at least one file.')
-            return False
+        if not self.files:
+            messages = messages + [
+                'Package must have at least one file.'
+            ]
         else:
-            return_value = True
             for f in self.files:
-                return_value = return_value and f.validate(messages)
-            return return_value
+                messages = f.validate(messages)
+
+        return messages
 
     def validate_optional_str_fields(self, messages):
         """Fields marked as optional and of type string in class
         docstring must be of a type that provides __str__ method.
         """
-        FIELDS = ['file_name', 'version', 'homepage', 'source_info',
-                  'summary', 'description']
-        return self.validate_str_fields(FIELDS, True, messages)
+        FIELDS = [
+            'file_name',
+            'version',
+            'homepage',
+            'source_info',
+            'summary',
+            'description'
+        ]
+        messages = self.validate_str_fields(FIELDS, True, messages)
+
+        return messages
 
     def validate_mandatory_str_fields(self, messages):
         """Fields marked as Mandatory and of type string in class
         docstring must be of a type that provides __str__ method.
         """
         FIELDS = ['name', 'download_location', 'verif_code', 'cr_text']
-        return self.validate_str_fields(FIELDS, False, messages)
+        messages = self.validate_str_fields(FIELDS, False, messages)
+
+        return messages
 
     def validate_str_fields(self, fields, optional, messages):
         """Helper for validate_mandatory_str_field and
         validate_optional_str_fields"""
-        return_value = True
         for field_str in fields:
-            field = eval('self.{0}'.format(field_str))
+            field = getattr(self, field_str)
             if field is not None:
+                # FIXME: this does not make sense???
                 attr = getattr(field, '__str__', None)
                 if not callable(attr):
-                    messages.append('{0} must provide __str__ method.'.format(
-                        field))
-                    return_value = False  # Continue checking.
+                    messages = messages + [
+                        '{0} must provide __str__ method.'.format(field)
+                    ]
+                    # Continue checking.
             elif not optional:
-                messages.append('Package {0} can not be None.'.format(field_str))
-                return_value = False
+                messages = messages + [
+                    'Package {0} can not be None.'.format(field_str)
+                ]
 
-        return return_value
+        return messages
 
     def validate_checksum(self, messages):
-        if self.check_sum is None:
-            return True
-        elif isinstance(self.check_sum, checksum.Algorithm):
-            if self.check_sum.identifier == 'SHA1':
-                return True
-            else:
-                messages.append('File checksum algorithm must be SHA1')
-                return False
+        if not isinstance(self.check_sum, checksum.Algorithm):
+            messages = messages + [
+                'Package checksum must be instance of spdx.checksum.Algorithm'
+            ]
         else:
-            messages.append('Package checksum must be instance of spdx.checksum.Algorithm')
-            return False
+            if self.check_sum.identifier != 'SHA1':
+                messages = messages + ['File checksum algorithm must be SHA1']
+
+        return messages
 
     def calc_verif_code(self):
         hashes = []
@@ -209,5 +228,4 @@ class Package(object):
         return sha1.hexdigest()
 
     def has_optional_field(self, field):
-        expr = 'self.{0} is not None'.format(field)
-        return eval(expr)
+        return getattr(self, field, None) is not None

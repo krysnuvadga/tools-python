@@ -12,52 +12,55 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
 
 from datetime import datetime
+from functools import total_ordering
 
 from spdx import config
 from spdx import utils
 
 
+@total_ordering
 class Creator(object):
-
-    """Creator enity.
-        Fields:
-        name: creator's name/identifier
     """
-
+    Creator enity.
+    Fields:
+    - name: creator's name/identifier
+    """
     def __init__(self, name):
-        super(Creator, self).__init__()
         self.name = name
 
+    # FIXME: do not overrride eq and not hash
     def __eq__(self, other):
-        return self.name == other.name
+        return isinstance(other, Creator) and self.name == other.name
+
+    def __lt__(self, other):
+        return isinstance(other, Creator) and self.name < other.name
 
 
-
-
-
+@total_ordering
 class Organization(Creator):
-
-    """Organization entity.
-        Fields:
-        name: Org's name/identifier. Mandatory. Type: str.
-        email: Org's email address. Optional. Type: str.
+    """
+    Organization entity.
+    Fields:
+    - name: Org's name/identifier. Mandatory. Type: str.
+    - email: Org's email address. Optional. Type: str.
     """
 
     def __init__(self, name, email):
         super(Organization, self).__init__(name)
         self.email = email
 
+    # FIXME: do not overrride eq and not hash
     def __eq__(self, other):
-        if type(other) is not Organization:
-            return False
-        else:
-            return (self.name + self.email) == (other.name + other.email)
+        return isinstance(other, Organization) and (self.name, self.email) == (other.name, other.email)
+
+    def __lt__(self, other):
+        return isinstance(other, Organization) and (self.name, self.email) < (other.name, other.email)
 
     def to_value(self):
-        """Tag/value representation of Organization entity."""
-        if self.email is not None:
+        if self.email:
             return 'Organization: {0} ({1})'.format(self.name, self.email)
         else:
             return 'Organization: {0}'.format(self.name)
@@ -66,26 +69,27 @@ class Organization(Creator):
         return self.to_value()
 
 
+@total_ordering
 class Person(Creator):
-
-    """Person entity.
-        Fields:
-        name: person's name/identifier. Mandatory. Type: str.
-        email: person's email address. Optional. Type: str.
+    """
+    Person entity.
+    Fields:
+    - name: person's name/identifier. Mandatory. Type: str.
+    - email: person's email address. Optional. Type: str.
     """
 
     def __init__(self, name, email):
         super(Person, self).__init__(name)
         self.email = email
 
+    # FIXME: do not overrride eq and not hash
     def __eq__(self, other):
-        if type(other) is not Person:
-            return False
-        else:
-            return (self.name + self.email) == (other.name + other.email)
+        return isinstance(other, Person) and (self.name, self.email) == (other.name, other.email)
+
+    def __lt__(self, other):
+        return isinstance(other, Person) and (self.name, self.email) < (other.name, other.email)
 
     def to_value(self):
-        """Tag/value representation of Person entity."""
         if self.email is not None:
             return 'Person: {0} ({1})'.format(self.name, self.email)
         else:
@@ -94,40 +98,38 @@ class Person(Creator):
     def __str__(self):
         return self.to_value()
 
-class Tool(Creator):
 
-    """Tool entity.
-        Fields:
-        name: tool identifier, with version. Type: str.
+class Tool(Creator):
+    """
+    Tool entity.
+    Fields:
+    - name: tool identifier, with version. Type: str.
     """
 
     def __init__(self, name):
         super(Tool, self).__init__(name)
 
     def to_value(self):
-        """Tag/value representation of Tool entity."""
         return 'Tool: {0}'.format(self.name)
 
     def __str__(self):
         return self.to_value()
 
 
-
 class CreationInfo(object):
-
-    """Represents a document's creation info.
-        Fields:
-        creators: List of creators. At least one required.
-            Type: Creator.
-        comment: Creation comment, optional. Type: str.
-        license_list_version: version of SPDX license used in creation of SPDX
-            document. One, optional. Type: spdx.version.Version
-        created: Creation date. Mandatory one. Type: datetime.
+    """
+    Represent a document creation info.
+    Fields:
+    - creators: List of creators. At least one required.
+        Type: Creator.
+    - comment: Creation comment, optional. Type: str.
+    - license_list_version: version of SPDX license used in creation of SPDX
+        document. One, optional. Type: spdx.version.Version
+    - created: Creation date. Mandatory one. Type: datetime.
     """
 
     def __init__(self, created=None, comment=None,
                  license_list_version=config.LICENSE_LIST_VERSION):
-        super(CreationInfo, self).__init__()
         self.creators = []
         self.created = created
         self.comment = comment
@@ -154,19 +156,20 @@ class CreationInfo(object):
         """Returns True if the fields are valid according to the SPDX standard.
         Appends user friendly messages to the messages parameter.
         """
-        return (self.validate_creators(messages) and
-                self.validate_created(messages))
+        messages = self.validate_creators(messages)
+        messages = self.validate_created(messages)
+
+        return messages
 
     def validate_creators(self, messages):
-        if len(self.creators) != 0:
-            return True
-        else:
-            messages.append('No creators defined, must have at least one.')
-            return False
+        if len(self.creators) == 0:
+            messages = messages + [
+                'No creators defined, must have at least one.']
+
+        return messages
 
     def validate_created(self, messages):
-        if self.created is not None:
-            return True
-        else:
-            messages.append('Creation info missing created date.')
-            return False
+        if self.created is None:
+            messages = messages + ['Creation info missing created date.']
+
+        return messages

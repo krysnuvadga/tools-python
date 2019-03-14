@@ -12,6 +12,7 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
 
 import codecs
 import os
@@ -68,42 +69,44 @@ class TestConversions(TestCase):
     def test_tagvalue_rdf(self):
         doc, error = self.parse_tagvalue_file('data/SPDXTagExample.tag')
         assert not error
-        assert doc.validate([])
+        assert doc.validate([]) == []
         filename = get_temp_file('.rdf')
         self.write_rdf_file(doc, filename)
         doc, error = self.parse_rdf_file(filename)
         assert not error
-        assert doc.validate([])
+        assert doc.validate([]) == []
 
     def test_rdf_rdf(self):
         doc, error = self.parse_rdf_file('data/SPDXRdfExample.rdf')
         assert not error
-        assert doc.validate([])
+        assert doc.validate([]) == []
         filename = get_temp_file('.rdf')
         self.write_rdf_file(doc, filename)
         doc, error = self.parse_rdf_file(filename)
         assert not error
-        assert doc.validate([])
+        assert doc.validate([]) == []
 
     def test_tagvalue_tagvalue(self):
         doc, error = self.parse_tagvalue_file('data/SPDXTagExample.tag')
         assert not error
-        assert doc.validate([])
+        assert doc.validate([]) == []
         filename = get_temp_file('.tag')
         self.write_tagvalue_file(doc, filename)
         doc, error = self.parse_tagvalue_file(filename)
         assert not error
-        assert doc.validate([])
+        assert doc.validate([]) == []
 
     def test_rdf_tagvalue(self):
         doc, error = self.parse_rdf_file('data/SPDXRdfExample.rdf')
         assert not error
-        assert doc.validate([])
+        assert doc.validate([]) == []
         filename = get_temp_file('.tag')
         self.write_tagvalue_file(doc, filename)
+        ###############################################
         doc, error = self.parse_tagvalue_file(filename)
+        # print(doc.annotations[-1].annotation_type)
         assert not error
-        assert doc.validate([])
+        assert doc.validate([]) == []
 
 
 if __name__ == '__main__':

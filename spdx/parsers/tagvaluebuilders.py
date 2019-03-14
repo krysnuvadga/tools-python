@@ -12,11 +12,13 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
 
 import re
 
 from six import string_types
 
+from spdx import annotation
 from spdx import checksum
 from spdx import creationinfo
 from spdx import document
@@ -26,16 +28,17 @@ from spdx import review
 from spdx import utils
 from spdx import version
 
+from spdx.document import ExternalDocumentRef
 from spdx.parsers.builderexceptions import CardinalityError
 from spdx.parsers.builderexceptions import OrderError
 from spdx.parsers.builderexceptions import SPDXValueError
-from spdx.parsers.builderexceptions import IncompatibleVersionError
 from spdx.parsers import validations
 
 
 def checksum_from_sha1(value):
-    """Returns an spdx.checksum.Algorithm instance representing the SHA1
-    checksum. Returns None if doesn't match CHECKSUM_RE.
+    """
+    Return an spdx.checksum.Algorithm instance representing the SHA1
+    checksum or None if does not match CHECKSUM_RE.
     """
     # More constrained regex at lexer level
     CHECKSUM_RE = re.compile('SHA1:\s*([\S]+)', re.UNICODE)
@@ -47,7 +50,9 @@ def checksum_from_sha1(value):
 
 
 def str_from_text(text):
-    """Returns content of a free form text block as a string."""
+    """
+    Return content of a free form text block as a string.
+    """
     REGEX = re.compile('<text>((.|\n)+)</text>', re.UNICODE)
     match = REGEX.match(text)
     if match:
@@ -57,17 +62,20 @@ def str_from_text(text):
 
 
 class DocBuilder(object):
-    """Responsible for setting the fields of the top level document model."""
+    """
+    Responsible for setting the fields of the top level document model.
+    """
     VERS_STR_REGEX = re.compile(r'SPDX-(\d+)\.(\d+)', re.UNICODE)
 
     def __init__(self):
-        super(DocBuilder, self).__init__()
+        # FIXME: this state does not make sense
         self.reset_document()
 
     def set_doc_version(self, doc, value):
-        """Sets the document version.
-        Raises value error if malformed value, CardinalityError
-        if already defined, IncompatibleVersionError if not 1.2.
+        """
+        Set the document version.
+        Raise SPDXValueError if malformed value, CardinalityError
+        if already defined
         """
         if not self.doc_version_set:
             self.doc_version_set = True
@@ -75,13 +83,9 @@ class DocBuilder(object):
             if m is None:
                 raise SPDXValueError('Document::Version')
             else:
-                vers = version.Version(major=int(m.group(1)),
-                                       minor=int(m.group(2)))
-                if vers == version.Version(major=1, minor=2):
-                    doc.version = vers
-                    return True
-                else:
-                    raise IncompatibleVersionError(value)
+                doc.version = version.Version(major=int(m.group(1)),
+                                              minor=int(m.group(2)))
+                return True
         else:
             raise CardinalityError('Document::Version')
 
@@ -100,6 +104,32 @@ class DocBuilder(object):
         else:
             raise CardinalityError('Document::DataLicense')
 
+    def set_doc_name(self, doc, name):
+        """Sets the document name.
+        Raises CardinalityError if already defined.
+        """
+        if not self.doc_name_set:
+            doc.name = name
+            self.doc_name_set = True
+            return True
+        else:
+            raise CardinalityError('Document::Name')
+
+    def set_doc_spdx_id(self, doc, doc_spdx_id_line):
+        """Sets the document SPDX Identifier.
+        Raises value error if malformed value, CardinalityError
+        if already defined.
+        """
+        if not self.doc_spdx_id_set:
+            if doc_spdx_id_line == 'SPDXRef-DOCUMENT':
+                doc.spdx_id = doc_spdx_id_line
+                self.doc_spdx_id_set = True
+                return True
+            else:
+                raise SPDXValueError('Document::SPDXID')
+        else:
+            raise CardinalityError('Document::SPDXID')
+
     def set_doc_comment(self, doc, comment):
         """Sets document comment, Raises CardinalityError if
         comment already set.
@@ -115,11 +145,65 @@ class DocBuilder(object):
         else:
             raise CardinalityError('Document::Comment')
 
+    def set_doc_namespace(self, doc, namespace):
+        """Sets the document namespace.
+        Raise SPDXValueError if malformed value, CardinalityError
+        if already defined.
+        """
+        if not self.doc_namespace_set:
+            self.doc_namespace_set = True
+            if validations.validate_doc_namespace(namespace):
+                doc.namespace = namespace
+                return True
+            else:
+                raise SPDXValueError('Document::Namespace')
+        else:
+            raise CardinalityError('Document::Comment')
+
     def reset_document(self):
         """Resets the state to allow building new documents"""
+        # FIXME: this state does not make sense
         self.doc_version_set = False
         self.doc_comment_set = False
+        self.doc_namespace_set = False
         self.doc_data_lics_set = False
+        self.doc_name_set = False
+        self.doc_spdx_id_set = False
+
+
+class ExternalDocumentRefBuilder(object):
+
+    def set_ext_doc_id(self, doc, ext_doc_id):
+        """
+        Sets the `external_document_id` attribute of the `ExternalDocumentRef`
+        object.
+        """
+        doc.add_ext_document_reference(
+            ExternalDocumentRef(
+                external_document_id=ext_doc_id))
+
+    def set_spdx_doc_uri(self, doc, spdx_doc_uri):
+        """
+        Sets the `spdx_document_uri` attribute of the `ExternalDocumentRef`
+        object.
+        """
+        if validations.validate_doc_namespace(spdx_doc_uri):
+            doc.ext_document_references[-1].spdx_document_uri = spdx_doc_uri
+        else:
+            raise SPDXValueError('Document::ExternalDocumentRef')
+
+    def set_chksum(self, doc, chksum):
+        """
+        Sets the `check_sum` attribute of the `ExternalDocumentRef`
+        object.
+        """
+        doc.ext_document_references[-1].check_sum = checksum_from_sha1(
+            chksum)
+
+    def add_ext_doc_refs(self, doc, ext_doc_id, spdx_doc_uri, chksum):
+        self.set_ext_doc_id(doc, ext_doc_id)
+        self.set_spdx_doc_uri(doc, spdx_doc_uri)
+        self.set_chksum(doc, chksum)
 
 
 class EntityBuilder(object):
@@ -132,9 +216,6 @@ class EntityBuilder(object):
     ORG_NAME_GROUP = 1
     ORG_EMAIL_GROUP = 4
     TOOL_NAME_GROUP = 1
-
-    def __init__(self):
-        super(EntityBuilder, self).__init__()
 
     def build_tool(self, doc, entity):
         """Builds a tool object out of a string representation.
@@ -184,7 +265,7 @@ class EntityBuilder(object):
 class CreationInfoBuilder(object):
 
     def __init__(self):
-        super(CreationInfoBuilder, self).__init__()
+        # FIXME: this state does not make sense
         self.reset_creation_info()
 
     def add_creator(self, doc, creator):
@@ -246,7 +327,9 @@ class CreationInfoBuilder(object):
             raise CardinalityError('CreationInfo::LicenseListVersion')
 
     def reset_creation_info(self):
-        """Resets builder's state to allow building new creation info."""
+        """
+        Resets builder state to allow building new creation info."""
+        # FIXME: this state does not make sense
         self.created_date_set = False
         self.creation_comment_set = False
         self.lics_list_ver_set = False
@@ -255,12 +338,12 @@ class CreationInfoBuilder(object):
 class ReviewBuilder(object):
 
     def __init__(self):
-        super(ReviewBuilder, self).__init__()
+        # FIXME: this state does not make sense
         self.reset_reviews()
-
 
     def reset_reviews(self):
         """Resets the builder's state to allow building new reviews."""
+        # FIXME: this state does not make sense
         self.review_date_set = False
         self.review_comment_set = False
 
@@ -270,6 +353,7 @@ class ReviewBuilder(object):
         Raises SPDXValueError if not a valid reviewer type.
         """
         # Each reviewer marks the start of a new review object.
+        # FIXME: this state does not make sense
         self.reset_reviews()
         if validations.validate_reviewer(reviewer):
             doc.add_review(review.Review(reviewer=reviewer))
@@ -315,17 +399,117 @@ class ReviewBuilder(object):
             raise OrderError('ReviewComment')
 
 
+class AnnotationBuilder(object):
+
+    def __init__(self):
+        # FIXME: this state does not make sense
+        self.reset_annotations()
+
+    def reset_annotations(self):
+        """Resets the builder's state to allow building new annotations."""
+        # FIXME: this state does not make sense
+        self.annotation_date_set = False
+        self.annotation_comment_set = False
+        self.annotation_type_set = False
+        self.annotation_spdx_id_set = False
+
+    def add_annotator(self, doc, annotator):
+        """Adds an annotator to the SPDX Document.
+        Annotator is an entity created by an EntityBuilder.
+        Raises SPDXValueError if not a valid annotator type.
+        """
+        # Each annotator marks the start of a new annotation object.
+        # FIXME: this state does not make sense
+        self.reset_annotations()
+        if validations.validate_annotator(annotator):
+            doc.add_annotation(annotation.Annotation(annotator=annotator))
+            return True
+        else:
+            raise SPDXValueError('Annotation::Annotator')
+
+    def add_annotation_date(self, doc, annotation_date):
+        """Sets the annotation date. Raises CardinalityError if
+        already set. OrderError if no annotator defined before.
+        Raises SPDXValueError if invalid value.
+        """
+        if len(doc.annotations) != 0:
+            if not self.annotation_date_set:
+                self.annotation_date_set = True
+                date = utils.datetime_from_iso_format(annotation_date)
+                if date is not None:
+                    doc.annotations[-1].annotation_date = date
+                    return True
+                else:
+                    raise SPDXValueError('Annotation::AnnotationDate')
+            else:
+                raise CardinalityError('Annotation::AnnotationDate')
+        else:
+            raise OrderError('Annotation::AnnotationDate')
+
+    def add_annotation_comment(self, doc, comment):
+        """Sets the annotation comment. Raises CardinalityError if
+        already set. OrderError if no annotator defined before.
+        Raises SPDXValueError if comment is not free form text.
+        """
+        if len(doc.annotations) != 0:
+            if not self.annotation_comment_set:
+                self.annotation_comment_set = True
+                if validations.validate_annotation_comment(comment):
+                    doc.annotations[-1].comment = str_from_text(comment)
+                    return True
+                else:
+                    raise SPDXValueError('AnnotationComment::Comment')
+            else:
+                raise CardinalityError('AnnotationComment::Comment')
+        else:
+            raise OrderError('AnnotationComment::Comment')
+
+    def add_annotation_type(self, doc, annotation_type):
+        """Sets the annotation type. Raises CardinalityError if
+        already set. OrderError if no annotator defined before.
+        Raises SPDXValueError if invalid value.
+        """
+        if len(doc.annotations) != 0:
+            if not self.annotation_type_set:
+                self.annotation_type_set = True
+                if validations.validate_annotation_type(annotation_type):
+                    doc.annotations[-1].annotation_type = annotation_type
+                    return True
+                else:
+                    raise SPDXValueError('Annotation::AnnotationType')
+            else:
+                raise CardinalityError('Annotation::AnnotationType')
+        else:
+            raise OrderError('Annotation::AnnotationType')
+
+    def set_annotation_spdx_id(self, doc, spdx_id):
+        """Sets the annotation SPDX Identifier.
+        Raises CardinalityError if already set. OrderError if no annotator
+        defined before.
+        """
+        if len(doc.annotations) != 0:
+            if not self.annotation_spdx_id_set:
+                self.annotation_spdx_id_set = True
+                doc.annotations[-1].spdx_id = spdx_id
+                return True
+            else:
+                raise CardinalityError('Annotation::SPDXREF')
+        else:
+            raise OrderError('Annotation::SPDXREF')
+
+
 class PackageBuilder(object):
     VERIF_CODE_REGEX = re.compile(r"([0-9a-f]+)\s*(\(\s*(.+)\))?", re.UNICODE)
     VERIF_CODE_CODE_GRP = 1
     VERIF_CODE_EXC_FILES_GRP = 3
 
     def __init__(self):
-        super(PackageBuilder, self).__init__()
+        # FIXME: this state does not make sense
         self.reset_package()
 
     def reset_package(self):
         """Resets the builder's state in order to build new packages."""
+        # FIXME: this state does not make sense
         self.package_set = False
         self.package_vers_set = False
         self.package_file_name_set = False
@@ -567,7 +751,7 @@ class PackageBuilder(object):
             raise CardinalityError('Package::LicenseComment')
 
     def set_pkg_cr_text(self, doc, text):
-        """Sets the package's license comment.
+        """Sets the package's copyright text.
         Raises OrderError if no package previously defined.
         Raises CardinalityError if already set.
         Raises value error if text is not one of [None, NOASSERT, TEXT].
@@ -625,7 +809,7 @@ class PackageBuilder(object):
 class FileBuilder(object):
 
     def __init__(self):
-        super(FileBuilder, self).__init__()
+        # FIXME: this state does not make sense
         self.reset_file_stat()
 
     def set_file_name(self, doc, name):
@@ -635,10 +819,31 @@ class FileBuilder(object):
             doc.package.files.append(file.File(name))
             # A file name marks the start of a new file instance.
             # The builder must be reset
+            # FIXME: this state does not make sense
             self.reset_file_stat()
             return True
         else:
             raise OrderError('File::Name')
+
+    def set_file_spdx_id(self, doc, spdx_id):
+        """
+        Sets the file SPDX Identifier.
+        Raises OrderError if no package or no file defined.
+        Raises SPDXValueError if malformed value.
+        Raises CardinalityError if more than one spdx_id set.
+        """
+        if self.has_package(doc) and self.has_file(doc):
+            if not self.file_spdx_id_set:
+                self.file_spdx_id_set = True
+                if validations.validate_file_spdx_id(spdx_id):
+                    self.file(doc).spdx_id = spdx_id
+                    return True
+                else:
+                    raise SPDXValueError('File::SPDXID')
+            else:
+                raise CardinalityError('File::SPDXID')
+        else:
+            raise OrderError('File::SPDXID')
 
     def set_file_comment(self, doc, text):
         """
@@ -830,6 +1035,8 @@ class FileBuilder(object):
 
     def reset_file_stat(self):
         """Resets the builder's state to enable building new files."""
+        # FIXME: this state does not make sense
+        self.file_spdx_id_set = False
         self.file_comment_set = False
         self.file_type_set = False
         self.file_chksum_set = False
@@ -842,7 +1049,7 @@ class FileBuilder(object):
 class LicenseBuilder(object):
 
     def __init__(self):
-        super(LicenseBuilder, self).__init__()
+        # FIXME: this state does not make sense
         self.reset_extr_lics()
 
     def extr_lic(self, doc):
@@ -856,6 +1063,7 @@ class LicenseBuilder(object):
         """Adds a new extracted license to the document.
         Raises SPDXValueError if data format is incorrect.
         """
+        # FIXME: this state does not make sense
         self.reset_extr_lics()
         if validations.validate_extracted_lic_id(lic_id):
             doc.add_extr_lic(document.ExtractedLicense(lic_id))
@@ -928,25 +1136,32 @@ class LicenseBuilder(object):
             raise OrderError('ExtractedLicense::CrossRef')
 
     def reset_extr_lics(self):
+        # FIXME: this state does not make sense
         self.extr_text_set = False
         self.extr_lic_name_set = False
         self.extr_lic_comment_set = False
 
 
 class Builder(DocBuilder, CreationInfoBuilder, EntityBuilder, ReviewBuilder,
-              PackageBuilder, FileBuilder, LicenseBuilder):
+              PackageBuilder, FileBuilder, LicenseBuilder,
+              ExternalDocumentRefBuilder, AnnotationBuilder):
 
     """SPDX document builder."""
 
     def __init__(self):
         super(Builder, self).__init__()
+        # FIXME: this state does not make sense
+        self.reset()
 
     def reset(self):
         """Resets builder's state for building new documents.
         Must be called between usage with different documents.
         """
+        # FIXME: this state does not make sense
+        self.reset_creation_info()
         self.reset_document()
         self.reset_package()
         self.reset_file_stat()
         self.reset_reviews()
+        self.reset_annotations()
         self.reset_extr_lics()

@@ -12,15 +12,12 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
+
 
 class BuilderException(Exception):
     """Builder exception base class."""
     pass
-
-
-class IncompatibleVersionError(BuilderException):
-    def __init__(self, msg):
-        self.msg = msg
 
 
 class CardinalityError(BuilderException):

@@ -12,6 +12,7 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
 
 import re
 
@@ -19,22 +20,25 @@ from spdx import checksum
 from spdx import document
 from spdx import version
 from spdx.parsers.builderexceptions import CardinalityError
-from spdx.parsers.builderexceptions import IncompatibleVersionError
 from spdx.parsers.builderexceptions import OrderError
 from spdx.parsers.builderexceptions import SPDXValueError
 from spdx.parsers import tagvaluebuilders
+from spdx.parsers import validations
 
 
 class DocBuilder(object):
     VERS_STR_REGEX = re.compile(r'SPDX-(\d+)\.(\d+)', re.UNICODE)
+
     def __init__(self):
-        super(DocBuilder, self).__init__()
+        # FIXME: this state does not make sense
         self.reset_document()
 
     def set_doc_version(self, doc, value):
-        """Sets the document version.
-        Raises value error if malformed value, CardinalityError
-        if already defined, IncompatibleVersionError if not 1.2.
+        """
+        Set the document version.
+        Raise exceptions:
+        - SPDXValueError if malformed value,
+        - CardinalityError if already defined,
         """
         if not self.doc_version_set:
             self.doc_version_set = True
@@ -42,23 +46,22 @@ class DocBuilder(object):
             if m is None:
                 raise SPDXValueError('Document::Version')
             else:
-                vers = version.Version(major=int(m.group(1)),
-                                       minor=int(m.group(2)))
-                if vers == version.Version(major=1, minor=2):
-                    doc.version = vers
-                    return True
-                else:
-                    raise IncompatibleVersionError(value)
+                doc.version = version.Version(major=int(m.group(1)),
+                                              minor=int(m.group(2)))
+                return True
         else:
             raise CardinalityError('Document::Version')
 
     def set_doc_data_lic(self, doc, res):
-        """Sets the document data license.
-        Raises value error if malformed value, CardinalityError
-        if already defined.
+        """
+        Set the document data license.
+        Raise exceptions:
+        - SPDXValueError if malformed value,
+        - CardinalityError if already defined.
         """
         if not self.doc_data_lics_set:
             self.doc_data_lics_set = True
+            # TODO: what is this split?
             res_parts = res.split('/')
             if len(res_parts) != 0:
                 identifier = res_parts[-1]
@@ -67,6 +70,32 @@ class DocBuilder(object):
                 raise SPDXValueError('Document::License')
         else:
             raise CardinalityError('Document::License')
+
+    def set_doc_name(self, doc, name):
+        """
+        Sets the document name, raises CardinalityError if already defined.
+        """
+        if not self.doc_name_set:
+            doc.name = name
+            self.doc_name_set = True
+            return True
+        else:
+            raise CardinalityError('Document::Name')
+
+    def set_doc_spdx_id(self, doc, doc_spdx_id_line):
+        """Sets the document SPDX Identifier.
+        Raises value error if malformed value, CardinalityError
+        if already defined.
+        """
+        if not self.doc_spdx_id_set:
+            if validations.validate_doc_spdx_id(doc_spdx_id_line):
+                doc.spdx_id = doc_spdx_id_line
+                self.doc_spdx_id_set = True
+                return True
+            else:
+                raise SPDXValueError('Document::SPDXID')
+        else:
+            raise CardinalityError('Document::SPDXID')
 
     def set_doc_comment(self, doc, comment):
         """Sets document comment, Raises CardinalityError if
@@ -78,14 +107,52 @@ class DocBuilder(object):
         else:
             raise CardinalityError('Document::Comment')
 
+    def set_doc_namespace(self, doc, namespace):
+        """Sets the document namespace.
+        Raise SPDXValueError if malformed value, CardinalityError
+        if already defined.
+        """
+        if not self.doc_namespace_set:
+            self.doc_namespace_set = True
+            if validations.validate_doc_namespace(namespace):
+                doc.namespace = namespace
+                return True
+            else:
+                raise SPDXValueError('Document::Namespace')
+        else:
+            raise CardinalityError('Document::Comment')
+
     def reset_document(self):
-        """Resets the state to allow building new documents"""
+        """
+        Reset the internal state to allow building new document
+        """
+        # FIXME: this state does not make sense
         self.doc_version_set = False
         self.doc_comment_set = False
+        self.doc_namespace_set = False
         self.doc_data_lics_set = False
+        self.doc_name_set = False
+        self.doc_spdx_id_set = False
+
+
+class ExternalDocumentRefBuilder(tagvaluebuilders.ExternalDocumentRefBuilder):
+
+    def set_chksum(self, doc, chk_sum):
+        """
+        Sets the external document reference's check sum, if not already set.
+        chk_sum - The checksum value in the form of a string.
+        """
+        if chk_sum:
+            doc.ext_document_references[-1].check_sum = checksum.Algorithm(
+                'SHA1', chk_sum)
+        else:
+            raise SPDXValueError('ExternalDocumentRef::Checksum')
 
 
 class EntityBuilder(tagvaluebuilders.EntityBuilder):
+
+    def __init__(self):
+        super(EntityBuilder, self).__init__()
 
     def create_entity(self, doc, value):
         if self.tool_re.match(value):
@@ -99,6 +166,9 @@ class EntityBuilder(tagvaluebuilders.EntityBuilder):
 
 
 class CreationInfoBuilder(tagvaluebuilders.CreationInfoBuilder):
+
+    def __init__(self):
+        super(CreationInfoBuilder, self).__init__()
 
     def set_creation_comment(self, doc, comment):
         """Sets creation comment, Raises CardinalityError if
@@ -114,6 +184,9 @@ class CreationInfoBuilder(tagvaluebuilders.CreationInfoBuilder):
 
 
 class PackageBuilder(tagvaluebuilders.PackageBuilder):
+
+    def __init__(self):
+        super(PackageBuilder, self).__init__()
 
     def set_pkg_chk_sum(self, doc, chk_sum):
         """Sets the package check sum, if not already set.
@@ -214,6 +287,9 @@ class PackageBuilder(tagvaluebuilders.PackageBuilder):
 
 class FileBuilder(tagvaluebuilders.FileBuilder):
 
+    def __init__(self):
+        super(FileBuilder, self).__init__()
+
     def set_file_chksum(self, doc, chk_sum):
         """Sets the file check sum, if not already set.
         chk_sum - A string
@@ -289,6 +365,10 @@ class FileBuilder(tagvaluebuilders.FileBuilder):
 
 
 class ReviewBuilder(tagvaluebuilders.ReviewBuilder):
+
+    def __init__(self):
+        super(ReviewBuilder, self).__init__()
+
     def add_review_comment(self, doc, comment):
         """Sets the review comment. Raises CardinalityError if
         already set. OrderError if no reviewer defined before.
@@ -304,13 +384,64 @@ class ReviewBuilder(tagvaluebuilders.ReviewBuilder):
             raise OrderError('ReviewComment')
 
 
-class Builder(DocBuilder, EntityBuilder, CreationInfoBuilder, PackageBuilder, FileBuilder, ReviewBuilder):
+class AnnotationBuilder(tagvaluebuilders.AnnotationBuilder):
+
+    def __init__(self):
+        super(AnnotationBuilder, self).__init__()
+
+    def add_annotation_comment(self, doc, comment):
+        """Sets the annotation comment. Raises CardinalityError if
+        already set. OrderError if no annotator defined before.
+        """
+        if len(doc.annotations) != 0:
+            if not self.annotation_comment_set:
+                self.annotation_comment_set = True
+                doc.annotations[-1].comment = comment
+                return True
+            else:
+                raise CardinalityError('AnnotationComment')
+        else:
+            raise OrderError('AnnotationComment')
+
+    def add_annotation_type(self, doc, annotation_type):
+        """Sets the annotation type. Raises CardinalityError if
+        already set. OrderError if no annotator defined before.
+        """
+        if len(doc.annotations) != 0:
+            if not self.annotation_type_set:
+                if annotation_type.endswith('annotationType_other'):
+                    self.annotation_type_set = True
+                    doc.annotations[-1].annotation_type = 'OTHER'
+                    return True
+                elif annotation_type.endswith('annotationType_review'):
+                    self.annotation_type_set = True
+                    doc.annotations[-1].annotation_type = 'REVIEW'
+                    return True
+                else:
+                    raise SPDXValueError('Annotation::AnnotationType')
+            else:
+                raise CardinalityError('Annotation::AnnotationType')
+        else:
+            raise OrderError('Annotation::AnnotationType')
+
+
+class Builder(DocBuilder, EntityBuilder, CreationInfoBuilder, PackageBuilder,
+              FileBuilder, ReviewBuilder, ExternalDocumentRefBuilder,
+              AnnotationBuilder):
+
+    def __init__(self):
+        super(Builder, self).__init__()
+        # FIXME: this state does not make sense
+        self.reset()
 
     def reset(self):
         """Resets builder's state for building new documents.
         Must be called between usage with different documents.
         """
+        # FIXME: this state does not make sense
+        self.reset_creation_info()
         self.reset_document()
         self.reset_package()
         self.reset_file_stat()
         self.reset_reviews()
+        self.reset_annotations()

@@ -12,33 +12,38 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
 
-import csv
+import codecs
+import json
 import os
 
 from spdx.version import Version
 
-
-class TwoWayDict(dict):
-
-    def __setitem__(self, key, value):
-        dict.__setitem__(self, key, value)
-        dict.__setitem__(self, value, key)
-
-    def __delitem__(self, key):
-        dict.__delitem__(self, self[key])
-        dict.__delitem__(self, key)
+_base_dir = os.path.dirname(__file__)
+_licenses = os.path.join(_base_dir, 'licenses.json')
+_exceptions = os.path.join(_base_dir, 'exceptions.json')
 
 
-def load_license_list():
-    FILE_NAME = os.path.join(os.path.dirname(__file__), 'spdx_licenselist.csv')
-    with open(FILE_NAME, 'r') as file_in:
-        reader = csv.DictReader(file_in)
-        dct = TwoWayDict()
-        for entry in reader:
-            dct[entry['Full name of License']] = entry['License Identifier']
-    return dct
+def load_license_list(file_name):
+    """
+    Return the licenses list version tuple and a mapping of licenses
+    name->id and id->name loaded from a JSON file
+    from https://github.com/spdx/license-list-data
+    """
+    licenses_map = {}
+    with codecs.open(file_name, 'rb', encoding='utf-8') as lics:
+        licenses = json.load(lics)
+        version = licenses['licenseListVersion'].split('.')
+        for lic in licenses['licenses']:
+            if lic.get('isDeprecatedLicenseId'):
+                continue
+            name = lic['name']
+            identifier = lic['licenseId']
+            licenses_map[name] = identifier
+            licenses_map[identifier] = name
+    return version, licenses_map
 
 
-LICENSE_MAP = load_license_list()
-LICENSE_LIST_VERSION = Version(major=2, minor=25)
+(_major, _minor), LICENSE_MAP = load_license_list(_licenses)
+LICENSE_LIST_VERSION = Version(major=_major, minor=_minor)

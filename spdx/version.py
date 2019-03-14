@@ -12,6 +12,7 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
 
 from functools import total_ordering
 import re
@@ -19,15 +20,15 @@ import re
 
 @total_ordering
 class Version(object):
-    """Version number composed of major and minor.
-       Fields:
-       major: Major number, int.
-       minor: Minor number, int.
+    """
+    Version number composed of major and minor.
+    Fields:
+    - major: Major number, int.
+    - minor: Minor number, int.
     """
     VERS_STR_REGEX = re.compile(r'(\d+)\.(\d+)')
 
-    def __init__(self, major=1, minor=2):
-        super(Version, self).__init__()
+    def __init__(self, major, minor):
         self.major = major
         self.minor = minor
 
@@ -42,6 +43,9 @@ class Version(object):
             return cls(int(m.group(1)), int(m.group(2)))
         else:
             return None
+
+    def __str__(self):
+        return 'SPDX-{major}.{minor}'.format(**self.__dict__)
 
     def __eq__(self, other):
         return self.major == other.major and self.minor == other.minor

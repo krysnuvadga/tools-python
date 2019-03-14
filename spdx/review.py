@@ -12,27 +12,43 @@
 
 from __future__ import absolute_import
 from __future__ import print_function
+from __future__ import unicode_literals
 
 from datetime import datetime
+from functools import total_ordering
 
 from spdx.utils import datetime_iso_format
 
 
+@total_ordering
 class Review(object):
 
-    """Document review information.
-        Fields:
-        reviewer: Person, Organization or tool that reviewed the SPDX file.
-            Mandotary one.
-        review_date: Review date, mandatory one. Type: datetime.
-        comment: Review comment. Optional one. Type: str.
+    """
+    Document review information.
+    Fields:
+    - reviewer: Person, Organization or tool that reviewed the SPDX file.
+      Mandatory one.
+    - review_date: Review date, mandatory one. Type: datetime.
+    - comment: Review comment. Optional one. Type: str.
     """
 
     def __init__(self, reviewer=None, review_date=None, comment=None):
-        super(Review, self).__init__()
         self.reviewer = reviewer
         self.review_date = review_date
         self.comment = comment
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, Review) and self.reviewer == other.reviewer
+            and self.review_date == other.review_date
+            and self.comment == other.comment
+        )
+
+    def __lt__(self, other):
+        return (
+            (self.reviewer, self.review_date, self.comment) <
+            (other.reviewer, other.review_date, other.comment,)
+        )
 
     def set_review_date_now(self):
         self.review_date = datetime.utcnow()
@@ -49,19 +65,19 @@ class Review(object):
         """Returns True if all the fields are valid.
         Appends any error messages to messages parameter.
         """
-        return (self.validate_reviewer(messages) and
-                self.validate_review_date(messages))
+        messages = self.validate_reviewer(messages)
+        messages = self.validate_review_date(messages)
+
+        return messages
 
     def validate_reviewer(self, messages):
-        if self.reviewer is not None:
-            return True
-        else:
-            messages.append('Review missing reviewer.')
-            return False
+        if self.reviewer is None:
+            messages = messages + ['Review missing reviewer.']
+
+        return messages
 
     def validate_review_date(self, messages):
-        if self.review_date is not None:
-            return True
-        else:
-            messages.append('Review missing review date.')
-            return False
+        if self.review_date is None:
+            messages = messages + ['Review missing review date.']
+
+        return messages
